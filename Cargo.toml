@@ -2,3 +2,6 @@
 name = "kuku"
 version = "0.1.0"
 edition = "2024"
+authors = ["yaeju1205"]
+description = "A small parser combinator library for Rust"
+license = "MIT"
