@@ -2,6 +2,8 @@ use crate::{Parser, Scanner};
 
 /// Zero or more repetitions
 ///
+/// Stops at the first failing item, unless its error is fatal
+///
 /// ```rust
 /// use kuku::*;
 ///
@@ -15,16 +17,20 @@ pub fn many<T>(item: impl Parser<T>) -> impl Parser<Vec<T>> {
         let mut values = Vec::new();
 
         loop {
-            let branch = scanner.branch();
+            let start = scanner.position();
 
-            let Ok(value) = item(scanner) else {
-                scanner.restore(branch);
-                break;
+            let value = match item(scanner) {
+                Ok(value) => value,
+                Err(error) if error.fatal => return Err(error),
+                Err(_) => {
+                    scanner.restore(start);
+                    break;
+                }
             };
 
             values.push(value);
 
-            if scanner.offset == branch.offset {
+            if scanner.offset() == start.offset {
                 break;
             }
         }

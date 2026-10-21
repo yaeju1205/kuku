@@ -15,7 +15,7 @@ pub fn between<O, T, C>(
     close: impl Parser<C>,
 ) -> impl Parser<T> {
     move |scanner: &mut Scanner| {
-        let branch = scanner.branch();
+        let start = scanner.position();
 
         let result = open(scanner).and_then(|_| {
             let value = inner(scanner)?;
@@ -24,7 +24,7 @@ pub fn between<O, T, C>(
         });
 
         if result.is_err() {
-            scanner.restore(branch);
+            scanner.restore(start);
         }
 
         result

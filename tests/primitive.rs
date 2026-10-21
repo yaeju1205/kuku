@@ -5,7 +5,12 @@ fn uint_reads_digits() {
     assert_eq!(parse("0042", uint::parse), Ok(42));
     assert_eq!(parse("1234", uint::parse), Ok(1234));
     assert!(parse("-1", uint::parse).is_err());
-    assert!(parse("99999999999999999999999", uint::parse).is_err());
+    assert_eq!(
+        parse("99999999999999999999999", uint::parse)
+            .unwrap_err()
+            .to_string(),
+        "1:1: unsigned integer is too large",
+    );
 }
 
 #[test]

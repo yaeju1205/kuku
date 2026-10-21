@@ -1,19 +1,15 @@
-use crate::{Parser, Scanner};
+use crate::{Error, Parser, Scanner};
 
 /// Tuple of parsers for sequence
 pub trait Sequence<T> {
-    fn run(&self, scanner: &mut Scanner) -> Result<(), String>;
+    fn run(&self, scanner: &mut Scanner) -> Result<T, Error>;
 }
 
 macro_rules! impl_sequence {
     ($($parser:ident $value:ident $index:tt),+) => {
         impl<$($value, $parser: Parser<$value>),+> Sequence<($($value,)+)> for ($($parser,)+) {
-            fn run(&self, scanner: &mut Scanner) -> Result<(), String> {
-                $(
-                    (self.$index)(scanner)?;
-                )+
-
-                Ok(())
+            fn run(&self, scanner: &mut Scanner) -> Result<($($value,)+), Error> {
+                Ok(($((self.$index)(scanner)?,)+))
             }
         }
     };
@@ -32,23 +28,23 @@ impl_sequence!(A TA 0, B TB 1, C TC 2, D TD 3, E TE 4, F TF 5, G TG 6, H TH 7, I
 impl_sequence!(A TA 0, B TB 1, C TC 2, D TD 3, E TE 4, F TF 5, G TG 6, H TH 7, I TI 8, J TJ 9, K TK 10);
 impl_sequence!(A TA 0, B TB 1, C TC 2, D TD 3, E TE 4, F TF 5, G TG 6, H TH 7, I TI 8, J TJ 9, K TK 10, L TL 11);
 
-/// Run every parser in order, discarding values
+/// Tuple of every parser's value, run in order
 ///
 /// ```rust
 /// use kuku::*;
 ///
 /// let assignment = sequence((string::parse("a"), string::parse("="), uint::parse));
 ///
-/// assert_eq!(parse("a=1", &assignment), Ok(()));
+/// assert_eq!(parse("a=1", &assignment), Ok(("a", "=", 1)));
 /// assert!(parse("a=x", &assignment).is_err());
 /// ```
-pub fn sequence<T>(parsers: impl Sequence<T>) -> impl Parser<()> {
+pub fn sequence<T>(parsers: impl Sequence<T>) -> impl Parser<T> {
     move |scanner: &mut Scanner| {
-        let branch = scanner.branch();
+        let start = scanner.position();
 
         let result = parsers.run(scanner);
         if result.is_err() {
-            scanner.restore(branch);
+            scanner.restore(start);
         }
 
         result

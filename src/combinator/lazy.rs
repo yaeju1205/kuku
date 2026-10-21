@@ -7,7 +7,7 @@ use crate::{Parser, Scanner};
 /// ```rust
 /// use kuku::*;
 ///
-/// fn nested(scanner: &mut Scanner) -> Result<usize, String> {
+/// fn nested(scanner: &mut Scanner) -> Result<usize, Error> {
 ///     choice((
 ///         map(between(string::parse("("), lazy(|| nested), string::parse(")")), |depth| depth + 1),
 ///         map(string::parse(""), |_| 0),

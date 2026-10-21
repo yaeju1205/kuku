@@ -1,4 +1,4 @@
-use crate::Scanner;
+use crate::{Error, Scanner};
 
 /// Unsigned integer
 ///
@@ -8,31 +8,26 @@ use crate::Scanner;
 /// assert_eq!(parse("42", uint::parse), Ok(42));
 /// assert!(parse("-42", uint::parse).is_err());
 /// ```
-pub fn parse(scanner: &mut Scanner) -> Result<usize, String> {
-    let branch = scanner.branch();
+pub fn parse(scanner: &mut Scanner) -> Result<usize, Error> {
+    let start = scanner.position();
     let mut sum: usize = 0;
-    let mut length = 0;
 
     while let Some(digit) = scanner.peek().and_then(|char| char.to_digit(10)) {
         scanner.advance();
-        length += 1;
 
         let Some(next) = sum
             .checked_mul(10)
             .and_then(|sum| sum.checked_add(digit as usize))
         else {
-            scanner.restore(branch);
-            return Err("unsigned integer is too large".into());
+            scanner.restore(start);
+            return Err(scanner.error("unsigned integer is too large"));
         };
 
         sum = next;
     }
 
-    if length == 0 {
-        return Err(match scanner.peek() {
-            Some(char) => format!("expected unsigned integer, got '{char}'"),
-            None => "expected unsigned integer, got end of input".into(),
-        });
+    if scanner.offset() == start.offset {
+        return Err(scanner.expected("unsigned integer"));
     }
 
     Ok(sum)

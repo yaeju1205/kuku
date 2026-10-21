@@ -1,4 +1,4 @@
-use crate::{Parser, Scanner};
+use crate::{Error, Parser, Scanner};
 
 /// Exact string
 ///
@@ -6,15 +6,17 @@ use crate::{Parser, Scanner};
 /// use kuku::*;
 ///
 /// assert_eq!(parse("hello", string::parse("hello")), Ok("hello"));
-/// assert!(parse("help", string::parse("hello")).is_err());
+/// assert_eq!(
+///     parse("help", string::parse("hello")).unwrap_err().to_string(),
+///     "1:1: expected 'hello', got 'help'",
+/// );
 /// ```
 pub fn parse(expected: &str) -> impl Parser<&str> {
     move |scanner: &mut Scanner| {
         let rest = scanner.rest();
 
-        if let Some(stripped) = rest.strip_prefix(expected) {
-            let length = rest.len() - stripped.len();
-            while scanner.rest().len() > rest.len() - length {
+        if rest.starts_with(expected) {
+            for _ in expected.chars() {
                 scanner.advance();
             }
 
@@ -25,10 +27,18 @@ pub fn parse(expected: &str) -> impl Parser<&str> {
         for (char, expected_char) in rest.chars().zip(expected.chars()) {
             got.push(char);
             if char != expected_char {
-                return Err(format!("expected '{expected}', got '{got}'"));
+                return Err(Error::expected(
+                    scanner.position(),
+                    format!("'{expected}'"),
+                    format!("'{got}'"),
+                ));
             }
         }
 
-        Err(format!("expected '{expected}', got end of input"))
+        Err(Error::expected(
+            scanner.position(),
+            format!("'{expected}'"),
+            "end of input",
+        ))
     }
 }

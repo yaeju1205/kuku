@@ -1,4 +1,4 @@
-use crate::{Scanner, parser::uint};
+use crate::{Error, Scanner, parser::uint};
 
 /// Signed integer with an optional '+' or '-' sign
 ///
@@ -8,8 +8,8 @@ use crate::{Scanner, parser::uint};
 /// assert_eq!(parse("-42", int::parse), Ok(-42));
 /// assert_eq!(parse("+42", int::parse), Ok(42));
 /// ```
-pub fn parse(scanner: &mut Scanner) -> Result<isize, String> {
-    let branch = scanner.branch();
+pub fn parse(scanner: &mut Scanner) -> Result<isize, Error> {
+    let start = scanner.position();
 
     let negative = match scanner.peek() {
         Some('-') => {
@@ -26,7 +26,7 @@ pub fn parse(scanner: &mut Scanner) -> Result<isize, String> {
     let digits = match uint::parse(scanner) {
         Ok(digits) => digits,
         Err(error) => {
-            scanner.restore(branch);
+            scanner.restore(start);
             return Err(error);
         }
     };
@@ -38,7 +38,7 @@ pub fn parse(scanner: &mut Scanner) -> Result<isize, String> {
     };
 
     value.ok_or_else(|| {
-        scanner.restore(branch);
-        "integer is out of range".into()
+        scanner.restore(start);
+        scanner.error("integer is out of range")
     })
 }

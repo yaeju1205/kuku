@@ -1,11 +1,18 @@
 use kuku::*;
 
+fn failure<T: std::fmt::Debug>(result: Result<T, Error>) -> String {
+    result.unwrap_err().to_string()
+}
+
 #[test]
 fn choice_tries_in_order() {
     let boolean = choice((string::parse("true"), string::parse("false")));
 
     assert_eq!(parse("false", &boolean), Ok("false"));
-    assert!(parse("maybe", &boolean).is_err());
+    assert_eq!(
+        failure(parse("maybe", &boolean)),
+        "1:1: expected 'true' or 'false', got 'm'"
+    );
 }
 
 #[test]
@@ -16,14 +23,27 @@ fn choice_shares_prefix() {
 }
 
 #[test]
-fn sequence_runs_every_parser() {
+fn choice_reports_the_furthest_error() {
+    let pair = choice((
+        map(
+            sequence((string::parse("("), uint::parse, string::parse(")"))),
+            |(_, value, _)| value,
+        ),
+        uint::parse,
+    ));
+
+    assert_eq!(failure(parse("(1]", &pair)), "1:3: expected ')', got ']'");
+}
+
+#[test]
+fn sequence_gives_every_value() {
     let assignment = sequence((string::parse("a"), string::parse("="), uint::parse));
 
-    assert_eq!(parse("a=1", &assignment), Ok(()));
+    assert_eq!(parse("a=1", &assignment), Ok(("a", "=", 1)));
 
     let mut scanner = Scanner::new("a=x");
     assert!(assignment(&mut scanner).is_err());
-    assert_eq!(scanner.offset, 0);
+    assert_eq!(scanner.offset(), 0);
 }
 
 #[test]
@@ -68,7 +88,7 @@ fn between_keeps_inner() {
 
     let mut scanner = Scanner::new("(1");
     assert!(parens(&mut scanner).is_err());
-    assert_eq!(scanner.offset, 0);
+    assert_eq!(scanner.offset(), 0);
 }
 
 #[test]
@@ -96,7 +116,19 @@ fn token_eats_trailing_spaces() {
     assert_eq!(parse("1, 2, 3", list), Ok(vec![1, 2, 3]));
 }
 
-fn expression(scanner: &mut Scanner) -> Result<isize, String> {
+#[test]
+fn token_with_eats_what_skip_takes() {
+    let comment = sequence((string::parse("#"), many(none_of::parse("\n"))));
+    let blank = many(choice((
+        map(one_of::parse(" \n"), |_| ()),
+        map(comment, |_| ()),
+    )));
+    let number = token_with(uint::parse, &blank);
+
+    assert_eq!(parse("1 # one\n2 # two", many(&number)), Ok(vec![1, 2]));
+}
+
+fn expression(scanner: &mut Scanner) -> Result<isize, Error> {
     let atom = choice((
         int::parse,
         between(string::parse("("), lazy(|| expression), string::parse(")")),
@@ -113,13 +145,79 @@ fn lazy_ties_recursion() {
 }
 
 #[test]
-fn label_replaces_errors() {
+fn label_replaces_errors_at_the_start() {
     let identifier = label(
         "identifier",
         some(one_of::parse("abcdefghijklmnopqrstuvwxyz")),
     );
 
-    assert_eq!(parse("1", identifier), Err("expected identifier".into()));
+    assert_eq!(
+        failure(parse("1", &identifier)),
+        "1:1: expected identifier, got '1'"
+    );
+
+    let call = label("call", sequence((&identifier, string::parse("()"))));
+    assert_eq!(failure(parse("f(]", call)), "1:2: expected '()', got '(]'");
+}
+
+fn statement(scanner: &mut Scanner) -> Result<usize, Error> {
+    let assignment = map(
+        sequence((token(string::parse("let")), cut(token(uint::parse)))),
+        |(_, value)| value,
+    );
+
+    choice((assignment, token(uint::parse)))(scanner)
+}
+
+#[test]
+fn cut_keeps_the_error_where_it_happened() {
+    assert_eq!(parse("let 1 2 let 3", many(statement)), Ok(vec![1, 2, 3]));
+    assert_eq!(
+        failure(parse("let 1 let x", many(statement))),
+        "1:11: expected unsigned integer, got 'x'",
+    );
+    assert_eq!(
+        failure(parse("let x", optional(statement))),
+        "1:5: expected unsigned integer, got 'x'",
+    );
+    assert_eq!(
+        failure(parse("1,let x", separated(statement, string::parse(",")))),
+        "1:7: expected unsigned integer, got 'x'",
+    );
+}
+
+#[test]
+fn look_ahead_consumes_nothing() {
+    let mut scanner = Scanner::new("abc");
+
+    assert_eq!(look_ahead(string::parse("ab"))(&mut scanner), Ok("ab"));
+    assert_eq!(scanner.offset(), 0);
+    assert!(look_ahead(string::parse("x"))(&mut scanner).is_err());
+    assert_eq!(scanner.offset(), 0);
+}
+
+#[test]
+fn not_succeeds_where_target_fails() {
+    let letter = satisfy::parse("letter", |char| char.is_alphabetic());
+    let keyword = sequence((string::parse("for"), not(&letter)));
+
+    assert!(parse_partial("for x", &keyword).is_ok());
+    assert_eq!(
+        failure(parse_partial("format", &keyword)),
+        "1:4: unexpected 'm'"
+    );
+}
+
+#[test]
+fn recognize_gives_source() {
+    let word = recognize(sequence((
+        satisfy::parse("letter", |char| char.is_alphabetic()),
+        many(satisfy::parse("letter or digit", |char| {
+            char.is_alphanumeric()
+        })),
+    )));
+
+    assert_eq!(parse("nyang2", word), Ok("nyang2".into()));
 }
 
 #[test]

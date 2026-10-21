@@ -2,6 +2,8 @@ use crate::{Parser, Scanner};
 
 /// Zero or more items separated by separator
 ///
+/// Stops before a separator that is not followed by an item, unless an error is fatal
+///
 /// ```rust
 /// use kuku::*;
 ///
@@ -14,26 +16,31 @@ pub fn separated<T, S>(item: impl Parser<T>, separator: impl Parser<S>) -> impl 
     move |scanner: &mut Scanner| {
         let mut values = Vec::new();
 
-        let branch = scanner.branch();
+        let start = scanner.position();
         match item(scanner) {
             Ok(value) => values.push(value),
+            Err(error) if error.fatal => return Err(error),
             Err(_) => {
-                scanner.restore(branch);
+                scanner.restore(start);
                 return Ok(values);
             }
         }
 
         loop {
-            let branch = scanner.branch();
+            let start = scanner.position();
 
-            let Ok(value) = separator(scanner).and_then(|_| item(scanner)) else {
-                scanner.restore(branch);
-                break;
+            let value = match separator(scanner).and_then(|_| item(scanner)) {
+                Ok(value) => value,
+                Err(error) if error.fatal => return Err(error),
+                Err(_) => {
+                    scanner.restore(start);
+                    break;
+                }
             };
 
             values.push(value);
 
-            if scanner.offset == branch.offset {
+            if scanner.offset() == start.offset {
                 break;
             }
         }

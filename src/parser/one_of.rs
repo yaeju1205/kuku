@@ -1,4 +1,4 @@
-use crate::{Parser, parser::satisfy};
+use crate::{Parser, Scanner, parser::satisfy};
 
 /// Single character in the given characters
 ///
@@ -9,7 +9,11 @@ use crate::{Parser, parser::satisfy};
 /// assert!(parse("x", one_of::parse("abc")).is_err());
 /// ```
 pub fn parse(chars: &str) -> impl Parser<char> {
-    satisfy::parse(format!("one of '{chars}'"), move |char| {
-        chars.contains(char)
-    })
+    move |scanner: &mut Scanner| {
+        satisfy::next_if(
+            scanner,
+            |char| chars.contains(char),
+            || format!("one of '{chars}'"),
+        )
+    }
 }

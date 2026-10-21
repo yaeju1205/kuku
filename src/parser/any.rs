@@ -1,4 +1,4 @@
-use crate::Scanner;
+use crate::{Error, Scanner};
 
 /// Any single character
 ///
@@ -8,10 +8,8 @@ use crate::Scanner;
 /// assert_eq!(parse("a", any::parse), Ok('a'));
 /// assert!(parse("", any::parse).is_err());
 /// ```
-pub fn parse(scanner: &mut Scanner) -> Result<char, String> {
-    if let Some(char) = scanner.advance() {
-        Ok(char)
-    } else {
-        Err("expected any character, got end of input".into())
-    }
+pub fn parse(scanner: &mut Scanner) -> Result<char, Error> {
+    scanner
+        .advance()
+        .ok_or_else(|| scanner.expected("any character"))
 }

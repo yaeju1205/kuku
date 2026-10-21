@@ -1,4 +1,4 @@
-use crate::Scanner;
+use crate::{Error, Scanner};
 
 /// Zero or more whitespace characters
 ///
@@ -8,14 +8,14 @@ use crate::Scanner;
 /// assert_eq!(parse(" \t\n", spaces::parse), Ok(" \t\n".into()));
 /// assert_eq!(parse("", spaces::parse), Ok("".into()));
 /// ```
-pub fn parse(scanner: &mut Scanner) -> Result<String, String> {
-    let rest = scanner.rest();
-    let mut length = 0;
+pub fn parse(scanner: &mut Scanner) -> Result<String, Error> {
+    let start = scanner.position();
+    skip(scanner);
+    Ok(scanner.since(start).to_string())
+}
 
-    while let Some(char @ (' ' | '\t' | '\n' | '\r')) = scanner.peek() {
+pub(crate) fn skip(scanner: &mut Scanner) {
+    while let Some(' ' | '\t' | '\n' | '\r') = scanner.peek() {
         scanner.advance();
-        length += char.len_utf8();
     }
-
-    Ok(rest[..length].to_string())
 }
